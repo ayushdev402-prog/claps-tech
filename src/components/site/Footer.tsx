@@ -19,7 +19,7 @@ export function Footer() {
           </p>
           <div className="mt-5 flex items-center gap-2">
             {[
-              { Icon: Linkedin, href: "https://www.linkedin.com/in/ayushsrivastavaji/" },
+              { Icon: Linkedin, href: "https://www.linkedin.com/in/animeshkumar143/" },
               { Icon: Github, href: "https://github.com/Animeshkumar143?tab=repositories" },
               { Icon: Mail, href: "mailto:animeshkumar143@gmail.com" },
             ].map(({ Icon, href }, i) => (
@@ -50,8 +50,23 @@ export function Footer() {
               </Link>
             </li>
             <li>
+              <Link to="/industries" className="hover:text-foreground">
+                Industries
+              </Link>
+            </li>
+            <li>
               <Link to="/portfolio" className="hover:text-foreground">
                 Portfolio
+              </Link>
+            </li>
+            <li>
+              <Link to="/blogs" className="hover:text-foreground">
+                Blogs
+              </Link>
+            </li>
+            <li>
+              <Link to="/careers" className="hover:text-foreground">
+                Careers
               </Link>
             </li>
             <li>
@@ -65,10 +80,26 @@ export function Footer() {
         <div>
           <h4 className="text-sm font-semibold mb-4">Solutions</h4>
           <ul className="space-y-2 text-sm text-muted-foreground">
-            <li>Custom Software</li>
-            <li>AI Calling Systems</li>
-            <li>CRM Development</li>
-            <li>Analytics Dashboards</li>
+            <li>
+              <Link to="/case-studies" className="hover:text-foreground">
+                Case Studies
+              </Link>
+            </li>
+            <li>
+              <Link to="/pricing" className="hover:text-foreground">
+                Pricing
+              </Link>
+            </li>
+            <li>
+              <Link to="/resources" className="hover:text-foreground">
+                Resources
+              </Link>
+            </li>
+            <li>
+              <Link to="/privacy" className="hover:text-foreground">
+                Privacy Policy
+              </Link>
+            </li>
           </ul>
         </div>
       </div>

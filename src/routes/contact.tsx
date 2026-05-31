@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import {
   Mail,
-  Phone,
   MapPin,
   MessageSquare,
   CalendarDays,
@@ -13,15 +12,53 @@ import {
 import { SiteLayout } from "@/components/site/Layout";
 import { Section, SectionHeading, GlowBlobs } from "@/components/site/Primitives";
 
-const contactEmails = ["ayushdev402@gmail.com", "animeshkumarsrivastava0@gmail.com"];
+const contactEmails = ["Officialclasptech@gmail.com"];
 const contactPhones = ["+91-6390129813", "+91-6386063411"];
-const primaryEmail = "ayushdev402@gmail.com";
+const primaryEmail = "Officialclasptech@gmail.com";
 const primaryPhone = "+91-6390129813";
 
 type ChatMessage = {
   sender: "bot" | "user";
   text: string;
 };
+
+type ChatOption = {
+  label: string;
+  value: string;
+};
+
+type ChatStep = "service" | "business" | "details" | "timeline" | "contact" | "done";
+
+type ChatLead = {
+  name?: string;
+  service?: string;
+  businessType?: string;
+  projectDetails?: string;
+  timeline?: string;
+  contact?: string;
+};
+
+const chatOptions: ChatOption[] = [
+  {
+    label: "CRM tool",
+    value: "I want to build a CRM tool",
+  },
+  {
+    label: "Business website",
+    value: "I need a business website",
+  },
+  {
+    label: "AI calling system",
+    value: "I want an AI calling system",
+  },
+  {
+    label: "Dashboard / analytics",
+    value: "I need a dashboard or analytics tool",
+  },
+];
+
+const chatWhatsAppNumber = "916390129813";
+const chatLeadStorageKey = "clasp-tech-chatbot-lead";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -74,21 +111,14 @@ function ContactPage() {
   } | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [chatStep, setChatStep] = useState<ChatStep>("service");
+  const [chatLead, setChatLead] = useState<ChatLead>({});
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { sender: "bot", text: "Hi, I am Clasp Tech AI. How may I help you?" },
+    {
+      sender: "bot",
+      text: "Hi, I am Clasp Tech AI. What would you like to build today? Choose an option below or type your requirement.",
+    },
   ]);
-
-  const whatsappLinks = useMemo(
-    () =>
-      contactPhones.map((phone) => {
-        const number = phone.replace(/\D/g, "");
-        const text = encodeURIComponent(
-          `Hello Clasp Tech, I would like to book a 30-minute walkthrough on ${bookingDate || "a suitable date"}.`,
-        );
-        return `https://wa.me/${number}?text=${text}`;
-      }),
-    [bookingDate],
-  );
 
   const handleContactSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -103,26 +133,130 @@ function ContactPage() {
     setShowSendModal(true);
   };
 
-  const isGreeting = (text: string) => /\b(hi|hello|hey|hii|hey there)\b/i.test(text.trim());
+  const inferService = (text: string) => {
+    const normalized = text.toLowerCase();
 
-  const notifySupportOnWhatsApp = (message: string) => {
-    const number = primaryPhone.replace(/\D/g, "");
+    if (/\b(crm|lead|pipeline|sales tool|customer)\b/i.test(normalized)) {
+      return chatOptions[0].value;
+    }
+
+    if (/\b(website|web site|landing page|seo|business site)\b/i.test(normalized)) {
+      return chatOptions[1].value;
+    }
+
+    if (/\b(ai|calling|call|voice|bot|automation)\b/i.test(normalized)) {
+      return chatOptions[2].value;
+    }
+
+    if (/\b(dashboard|analytics|report|data|chart)\b/i.test(normalized)) {
+      return chatOptions[3].value;
+    }
+
+    return "";
+  };
+
+  const notifySupportOnWhatsApp = (leadInput: ChatLead | string) => {
+    const lead = typeof leadInput === "string" ? { projectDetails: leadInput } : leadInput;
     const notification = encodeURIComponent(
-      `Hello Animesh, someone is waiting in chat and needs help. User says: "${message}". Please connect with them shortly.`,
+      `New chatbot lead from Clasp Tech website:\n\nName: ${lead.name || "Not shared"}\nService: ${lead.service || "Not shared"}\nBusiness / industry: ${lead.businessType || "Not shared"}\nProject details: ${lead.projectDetails || "Not shared"}\nTimeline / budget: ${lead.timeline || "Not shared"}\nContact details: ${lead.contact || "Not shared"}\n\nPlease connect with them soon.`,
     );
-    const waLink = `https://wa.me/${number}?text=${notification}`;
+    const waLink = `https://wa.me/${chatWhatsAppNumber}?text=${notification}`;
     if (typeof window !== "undefined") {
       window.open(waLink, "_blank");
     }
   };
 
+  const saveChatLead = (lead: ChatLead) => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(chatLeadStorageKey, JSON.stringify(lead));
+  };
+
+  const finishChatLead = (lead: ChatLead, messages: ChatMessage[]) => {
+    saveChatLead(lead);
+    notifySupportOnWhatsApp(lead);
+    setChatLead(lead);
+    setChatStep("done");
+    setChatMessages([
+      ...messages,
+      {
+        sender: "bot",
+        text: "Thank you. I have saved your details and sent them to our team on WhatsApp. We will get back to you soon. Stay in touch.",
+      },
+    ]);
+  };
+
+  const getChatPlaceholder = () => {
+    if (chatStep === "service") return "Type your requirement...";
+    if (chatStep === "business") return "Business type / industry...";
+    if (chatStep === "details") return "Project details...";
+    if (chatStep === "timeline") return "Timeline or budget...";
+    if (chatStep === "contact") return "Name, phone, email...";
+    return "Your details are saved.";
+  };
+
   const handleChatSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const text = chatInput.trim();
-    if (!text) return;
+    if (!text || chatStep === "done") return;
 
-    const nextMessages = [...chatMessages, { sender: "user", text }];
+    const nextMessages: ChatMessage[] = [...chatMessages, { sender: "user", text }];
+    setChatInput("");
 
+    if (chatStep === "service") {
+      const service = inferService(text) || text;
+      const updatedLead = { ...chatLead, service };
+      setChatLead(updatedLead);
+      setChatStep("business");
+      setChatMessages([
+        ...nextMessages,
+        { sender: "bot", text: "Great. Please tell me your business type or industry." },
+      ]);
+      return;
+    }
+
+    if (chatStep === "business") {
+      const updatedLead = { ...chatLead, businessType: text };
+      setChatLead(updatedLead);
+      setChatStep("details");
+      setChatMessages([
+        ...nextMessages,
+        {
+          sender: "bot",
+          text: "Got it. Please share the full requirement: features, pages, automation, or any problem you want solved.",
+        },
+      ]);
+      return;
+    }
+
+    if (chatStep === "details") {
+      const updatedLead = { ...chatLead, projectDetails: text };
+      setChatLead(updatedLead);
+      setChatStep("timeline");
+      setChatMessages([
+        ...nextMessages,
+        { sender: "bot", text: "Thanks. What is your timeline or budget range for this project?" },
+      ]);
+      return;
+    }
+
+    if (chatStep === "timeline") {
+      const updatedLead = { ...chatLead, timeline: text };
+      setChatLead(updatedLead);
+      setChatStep("contact");
+      setChatMessages([
+        ...nextMessages,
+        {
+          sender: "bot",
+          text: "Last step. Please share your name, phone number, and email so our team can contact you.",
+        },
+      ]);
+      return;
+    }
+
+    const nameMatch = text.match(/^[^,\n-]+/);
+    const updatedLead = { ...chatLead, name: nameMatch?.[0]?.trim(), contact: text };
+    finishChatLead(updatedLead, nextMessages);
+    /*
     if (isGreeting(text)) {
       setChatMessages([
         ...nextMessages,
@@ -140,6 +274,19 @@ function ContactPage() {
     }
 
     setChatInput("");
+    */
+  };
+
+  const handleChatOption = (option: ChatOption) => {
+    if (chatStep !== "service") return;
+    const updatedLead = { ...chatLead, service: option.value };
+    setChatLead(updatedLead);
+    setChatStep("business");
+    setChatMessages((messages) => [
+      ...messages,
+      { sender: "user", text: option.value },
+      { sender: "bot", text: "Great choice. Please tell me your business type or industry." },
+    ]);
   };
 
   const sendViaEmail = (
@@ -152,12 +299,16 @@ function ContactPage() {
     } | null,
   ) => {
     if (!data) return;
+    const subject = encodeURIComponent("New contact request from website");
     const body = encodeURIComponent(
       `New website inquiry:\n\nName: ${data.name || ""}\nEmail: ${data.email || ""}\nCompany: ${data.company || ""}\nService: ${data.service || ""}\nDetails: ${data.details || ""}`,
     );
-    const subject = encodeURIComponent("New contact request from website");
-    const mailto = `mailto:${primaryEmail}?subject=${subject}&body=${body}`;
-    if (typeof window !== "undefined") window.open(mailto, "_blank");
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+      primaryEmail,
+    )}&su=${subject}&body=${body}`;
+    if (typeof window !== "undefined") {
+      window.open(gmailUrl, "_blank");
+    }
     setShowSendModal(false);
     setSent(true);
   };
@@ -182,15 +333,14 @@ function ContactPage() {
 
   const handleBookingSave = () => {
     if (!bookingDate) return;
-    const subject = encodeURIComponent("Walkthrough booking request");
-    const body = encodeURIComponent(
-      `I would like to book a 30-minute walkthrough on ${bookingDate}. Please confirm the schedule.`,
+    const number = primaryPhone.replace(/\D/g, "");
+    const message = encodeURIComponent(
+      `Hello Clasp Tech, I would like to book a 30-minute walkthrough on ${bookingDate}. Please confirm the schedule.`,
     );
-    const mailto = `mailto:${contactEmails.join(",")}?subject=${subject}&body=${body}`;
+    const whatsappLink = `https://wa.me/${number}?text=${message}`;
 
     if (typeof window !== "undefined") {
-      window.open(mailto, "_blank");
-      whatsappLinks.forEach((link) => window.open(link, "_blank"));
+      window.open(whatsappLink, "_blank");
     }
 
     setBookingSaved(true);
@@ -293,32 +443,43 @@ function ContactPage() {
                 </div>
               </div>
               <div className="mt-6 space-y-3">
-                {contactEmails.map((email) => (
-                  <a
-                    key={email}
-                    href={`mailto:${email}`}
-                    className="flex items-center gap-3 rounded-3xl border border-slate-200/80 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-primary hover:bg-primary/5"
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <Mail className="h-4 w-4" />
-                    </div>
-                    <span>{email}</span>
-                  </a>
-                ))}
+                {contactEmails.map((email) => {
+                  const subject = encodeURIComponent("Clasp Tech inquiry");
+                  const body = encodeURIComponent(
+                    "Hello Clasp Tech,\n\nI would like to discuss a project.\n\nThanks,\n",
+                  );
+                  const gmailHref = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+                    email,
+                  )}&su=${subject}&body=${body}`;
+                  return (
+                    <a
+                      key={email}
+                      href={gmailHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 rounded-3xl border border-slate-200/80 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                      <span>{email}</span>
+                    </a>
+                  );
+                })}
               </div>
             </div>
 
             <div className="rounded-[32px] border border-white/70 bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 shadow-xl shadow-slate-900/5 transition-transform duration-300 hover:-translate-y-1">
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700 shadow-sm">
-                  <Phone className="h-5 w-5" />
+                  <WhatsAppIcon className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Phone</div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">WhatsApp</div>
                   <p className="mt-1 text-sm text-slate-600">Reach us instantly on WhatsApp.</p>
                 </div>
               </div>
-              <div className="mt-6 space-y-3">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {contactPhones.map((phone) => {
                   const number = phone.replace(/\D/g, "");
                   return (
@@ -380,50 +541,12 @@ function ContactPage() {
                   </button>
                   {bookingSaved && (
                     <p className="text-sm text-white/90">
-                      Saved! A booking request has been opened for both emails and phone numbers on
-                      WhatsApp.
+                      Saved! A booking request has been opened on WhatsApp.
                     </p>
                   )}
                 </div>
               )}
             </div>
-
-            {bookingSaved && (
-              <div className="rounded-3xl border border-border bg-slate-50 p-5 text-sm text-slate-700 shadow-sm">
-                <p className="font-semibold text-slate-900">Quick links</p>
-                <div className="mt-3 grid gap-3 text-sm">
-                  {contactEmails.map((email) => (
-                    <a
-                      key={email}
-                      href={`mailto:${email}?subject=Walkthrough%20booking&body=I%20would%20like%20to%20book%20a%2030-minute%20walkthrough%20on%20${encodeURIComponent(
-                        bookingDate,
-                      )}.`}
-                      className="block rounded-2xl border border-border bg-white px-4 py-3 text-slate-900 transition hover:border-primary hover:bg-primary/5 flex items-center gap-3"
-                    >
-                      <Mail className="h-4 w-4 text-slate-700" />
-                      <span>Email {email}</span>
-                    </a>
-                  ))}
-                  {contactPhones.map((phone) => {
-                    const number = phone.replace(/\D/g, "");
-                    return (
-                      <a
-                        key={phone}
-                        href={`https://wa.me/${number}?text=${encodeURIComponent(
-                          `Hello Clasp Tech, I would like to book a 30-minute walkthrough on ${bookingDate}.`,
-                        )}`}
-                        className="block rounded-2xl border border-border bg-white px-4 py-3 text-slate-900 transition hover:border-emerald-500 hover:bg-emerald-50 flex items-center gap-3"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <WhatsAppIcon className="h-4 w-4 text-emerald-500" />
-                        <span>Message {phone} on WhatsApp</span>
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </Section>
@@ -507,6 +630,20 @@ function ContactPage() {
                 {message.text}
               </div>
             ))}
+            {chatStep === "service" && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {chatOptions.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => handleChatOption(option)}
+                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-primary hover:bg-primary/5 hover:text-primary"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <form onSubmit={handleChatSubmit} className="border-t border-slate-200 px-4 py-3">
             <label htmlFor="chatInput" className="sr-only">
@@ -517,11 +654,13 @@ function ContactPage() {
                 id="chatInput"
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
-                placeholder="Type your message..."
+                placeholder={getChatPlaceholder()}
+                disabled={chatStep === "done"}
                 className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <button
                 type="submit"
+                disabled={chatStep === "done"}
                 className="inline-flex items-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
               >
                 Send
